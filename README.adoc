@@ -1,0 +1,49 @@
+bfc
+===
+
+'bfc' is a small, fast, self-contained, optimizing Brainfuck compiler for Linux
+on Intel x86-64.
+
+Also included are several interpreters in various states of sophistication that
+document my progress as I was writing this, from the simplest approach to an
+optimizing JIT compiler.
+
+It's pretty easy to retarget the compiler, it just means redoing half the work.
+The compiler itself is platform agnostic.
+
+Building
+--------
+Build dependencies: a C99 compiler +
+Runtime dependencies: Linux
+
+ $ git clone https://github.com/pjanouch/bfc.git
+ $ cd bfc
+ $ make
+
+To obtain dumps of the intermediate representation, compile with `-DDEBUG`:
+
+ $ make CPPFLAGS=-DDEBUG
+
+Usage
+-----
+
+ ./bfc-amd64-linux [INPUT-FILE] [OUTPUT-FILE]
+
+When no input file is specified, stdin is used.  Similarly, the default output
+filename is a.out.  The resulting file can be run on the target platform.
+
+Contributing and Support
+------------------------
+Use this project's GitHub to report any bugs, request features, or submit pull
+requests.  If you want to discuss this project, or maybe just hang out with
+the developer, feel free to join me at irc://irc.janouch.name, channel #dev.
+
+License
+-------
+'bfc' is written by Přemysl Janouch <p.janouch@gmail.com>.
+
+You may use the software under the terms of the ISC license, the text of which
+is included within the package, or, at your option, you may relicense the work
+under the MIT or the Modified BSD License, as listed at the following site:
+
+http://www.gnu.org/licenses/license-list.html

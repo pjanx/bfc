@@ -1,0 +1,15 @@
+This directory contains several Brainfuck interpreters in various states of
+sophistication, from the simplest approach to an optimizing JIT compiler:
+
+ * `bf.c` is the stupidest one and the oldest by far
+ * `bf-faster-loops.c` precomputes loop jumps
+ * `bf-optimizing.c` improves on that by changing `[-]+` loops into assignments
+ * `bf-jit.c` adds JIT compilation for Intel x86-64
+ * `bf-jit-opt.c` tries a bit harder to avoid looping on the current value
+ * `bf-jit-unsafe.c` abolishes all boundary checks when moving across the tape
+ * `bf-jit-unsafe-opt.c` makes use of immediate offsets to modify values
+
+I recommend using a tool such as 'meld' to view the differences.
+
+Just run `make` in this directory to have them all built, and append
+`CPPFLAGS=-DDEBUG` to get dumps of the IR for the more sophisticated JITs.

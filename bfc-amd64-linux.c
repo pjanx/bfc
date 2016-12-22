@@ -7,6 +7,10 @@
 #include <assert.h>
 #include <errno.h>
 
+#ifdef __unix__
+#include <fcntl.h>
+#endif
+
 #define exit_fatal(...)                                                        \
 	do {                                                                       \
 		fprintf (stderr, "fatal: " __VA_ARGS__);                               \
@@ -713,8 +717,16 @@ main (int argc, char *argv[])
 	// The section header table is optional and we don't need it for anything
 
 	FILE *output_file;
+#ifdef __unix__
+	int output_fd;
+	if ((output_fd = open (output_path, O_CREAT | O_WRONLY, 0777)) < 0)
+		exit_fatal ("open: %s: %s\n", output_path, strerror (errno));
+	if (!(output_file = fdopen (output_fd, "w")))
+		exit_fatal ("fdopen: %s\n", strerror (errno));
+#else
 	if (!(output_file = fopen (output_path, "w")))
 		exit_fatal ("fopen: %s: %s\n", output_path, strerror (errno));
+#endif
 
 	fwrite (buffer.str, buffer.len, 1, output_file);
 	fwrite (code.str, code.len, 1, output_file);

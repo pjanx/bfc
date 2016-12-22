@@ -29,8 +29,9 @@ Usage
 
  ./bfc-amd64-linux [INPUT-FILE] [OUTPUT-FILE]
 
-When no input file is specified, stdin is used.  Similarly, the default output
-filename is a.out.  The resulting file can be run on the target platform.
+When no input file is specified, standard input is used.  Similarly, the default
+output filename is `a.out`.  After the compilation, the resulting file can be
+run on the target platform.
 
 Contributing and Support
 ------------------------

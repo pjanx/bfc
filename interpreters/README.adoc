@@ -9,7 +9,12 @@ sophistication, from the simplest approach to an optimizing JIT compiler:
  * `bf-jit-unsafe.c` abolishes all boundary checks when moving across the tape
  * `bf-jit-unsafe-opt.c` makes use of immediate offsets to modify values
 
-I recommend using a tool such as 'meld' to view the differences.
+I recommend using a tool such as _meld_ to view the differences.
 
 Just run `make` in this directory to have them all built, and append
 `CPPFLAGS=-DDEBUG` to get dumps of the IR for the more sophisticated JITs.
+The interpreters take the program on standard input and read characters
+directly from the terminal device, so to run a simple `cat`-like program,
+you can do:
+
+ $ echo ',[.,]' | ./bf

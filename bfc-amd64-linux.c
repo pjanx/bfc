@@ -163,6 +163,19 @@ optimize_assignment (struct instruction *irb, size_t irb_len)
 	return out;
 }
 
+// Add the offset of the LEFT/RIGHT instruction to the accumulator
+static bool
+add_direction_offset (struct instruction *irb, intptr_t *acc)
+{
+	if (irb->cmd == RIGHT)
+		*acc += irb->arg;
+	else if (irb->cmd == LEFT)
+		*acc -= (intptr_t) irb->arg;
+	else
+		return false;
+	return true;
+}
+
 // Add offsets to INC/DEC/SET stuck between LEFT/RIGHT
 // and compress the LEFT/RIGHT sequences
 static size_t
@@ -172,11 +185,7 @@ optimize_offseted_inc_dec (struct instruction *irb, size_t irb_len)
 	for (in = 0, out = 0; in < irb_len; in++, out++)
 	{
 		intptr_t dir = 0;
-		if (irb[in].cmd == RIGHT)
-			dir = irb[in].arg;
-		else if (irb[in].cmd == LEFT)
-			dir = -(intptr_t) irb[in].arg;
-		else
+		if (!add_direction_offset (&irb[in], &dir))
 		{
 			irb[out] = irb[in];
 			continue;
@@ -187,15 +196,9 @@ optimize_offseted_inc_dec (struct instruction *irb, size_t irb_len)
 			// An immediate offset has its limits on x86-64
 			if (dir < INT8_MIN || dir > INT8_MAX)
 				break;
-
-			intptr_t diff;
-			if (irb[in + 2].cmd == RIGHT)
-				diff = irb[in + 2].arg;
-			else if (irb[in + 2].cmd == LEFT)
-				diff = -(intptr_t) irb[in + 2].arg;
-			else
+			intptr_t diff = 0;
+			if (!add_direction_offset (&irb[in + 2], &diff))
 				break;
-
 			int cmd = irb[in + 1].cmd;
 			if (cmd != INC && cmd != DEC && cmd != SET)
 				break;
@@ -209,14 +212,8 @@ optimize_offseted_inc_dec (struct instruction *irb, size_t irb_len)
 		}
 
 		for (; in + 1 < irb_len; in++)
-		{
-			if (irb[in + 1].cmd == RIGHT)
-				dir += irb[in + 1].arg;
-			else if (irb[in + 1].cmd == LEFT)
-				dir -= (intptr_t) irb[in + 1].arg;
-			else
+			if (!add_direction_offset (&irb[in + 1], &dir))
 				break;
-		}
 
 		if (!dir)
 			out--;

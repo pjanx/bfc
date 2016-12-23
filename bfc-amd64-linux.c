@@ -86,7 +86,7 @@ enum command
 	SET, EAT, INCACC, DECACC
 };
 
-bool grouped[] = { 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0 };
+bool grouped[] = { 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0 };
 struct instruction { enum command cmd; int offset; size_t arg; };
 #define INSTRUCTION(c, o, a) (struct instruction) { (c), (o), (a) }
 
@@ -363,7 +363,7 @@ int
 main (int argc, char *argv[])
 {
 	if (argc > 3)
-		exit_fatal ("usage: %s [INPUT-FILE]\n", argv[0]);
+		exit_fatal ("usage: %s [INPUT-FILE] [OUTPUT-FILE]\n", argv[0]);
 
 	FILE *input_file = stdin;
 	if (argc > 1 && !(input_file = fopen (argv[1], "r")))

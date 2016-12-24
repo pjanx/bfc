@@ -2,14 +2,15 @@ bfc
 ===
 
 'bfc' is a small, fast, self-contained, optimizing Brainfuck compiler for *nix
-on Intel x86-64.  Currently supported targets are Linux and OpenBSD.
+on Intel x86-64.
 
 Also included are several interpreters in various states of sophistication that
 document my progress as I was writing this, from the simplest approach to an
 optimizing JIT compiler.
 
 It's pretty easy to retarget the compiler, it just means redoing half the work.
-The compiler itself is platform agnostic.
+Thanks to the unified ABI, adding support for another flavour of *nix only means
+changing the syscall numbers.  The compiler itself is platform agnostic.
 
 Building
 --------
@@ -27,7 +28,8 @@ To obtain dumps of the intermediate representation, compile with `-DDEBUG`:
 Usage
 -----
 
- ./bfc-amd64-linux [INPUT-FILE] [OUTPUT-FILE]
+ $ ./bfc-amd64-linux [INPUT-FILE] [OUTPUT-FILE]
+ $ ./bfc-amd64-openbsd [INPUT-FILE] [OUTPUT-FILE]
 
 When no input file is specified, standard input is used.  Similarly, the default
 output filename is `a.out`.  After the compilation, the resulting file can be

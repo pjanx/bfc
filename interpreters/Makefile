@@ -1,5 +1,4 @@
-CC = c99
-CFLAGS = -O3
+CFLAGS = -std=gnu99 -O3
 
 NAMES = bf bf-faster-loops bf-optimizing \
 	bf-jit bf-jit-opt bf-jit-unsafe bf-jit-unsafe-opt

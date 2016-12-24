@@ -677,6 +677,7 @@ main (int argc, char *argv[])
 	{
 		ELF_HEADER_SIZE = 64,           // size of the ELF header
 		ELF_PROGRAM_ENTRY_SIZE = 56,    // size of a program header
+		ELF_SECTION_ENTRY_SIZE = 64,    // size of a section header
 		ELF_META_SIZE = ELF_HEADER_SIZE + 2 * ELF_PROGRAM_ENTRY_SIZE
 	};
 
@@ -689,7 +690,7 @@ main (int argc, char *argv[])
 	DD (0)                              // no processor-specific flags
 	DW (ELF_HEADER_SIZE)                // ELF header size
 	DW (ELF_PROGRAM_ENTRY_SIZE) DW (2)  // program hdr tbl entry size, count
-	DW (0) DW (0)                       // section hdr tbl entry size, count
+	DW (ELF_SECTION_ENTRY_SIZE) DW (0)  // section hdr tbl entry size, count
 	DW (0)                              // no section index for strings
 
 	// Program header for code
@@ -698,8 +699,8 @@ main (int argc, char *argv[])
 	DQ (0)                              // offset within the file
 	DQ (ELF_LOAD_CODE)                  // address in virtual memory
 	DQ (ELF_LOAD_CODE)                  // address in physical memory
-	DQ (code.len + ELF_META_SIZE)       // length within the file
-	DQ (code.len + ELF_META_SIZE)       // length within memory
+	DQ (ELF_META_SIZE + code.len)       // length within the file
+	DQ (ELF_META_SIZE + code.len)       // length within memory
 	DQ (4096)                           // segment alignment
 
 	// Program header for the tape

@@ -1,8 +1,8 @@
 bfc
 ===
 
-'bfc' is a small, fast, self-contained, optimizing Brainfuck compiler for Linux
-on Intel x86-64.
+'bfc' is a small, fast, self-contained, optimizing Brainfuck compiler for *nix
+on Intel x86-64.  Currently supported targets are Linux and OpenBSD.
 
 Also included are several interpreters in various states of sophistication that
 document my progress as I was writing this, from the simplest approach to an
@@ -14,7 +14,7 @@ The compiler itself is platform agnostic.
 Building
 --------
 Build dependencies: a C99 compiler +
-Runtime dependencies: Linux
+Runtime dependencies: Linux or OpenBSD
 
  $ git clone https://github.com/pjanouch/bfc.git
  $ cd bfc

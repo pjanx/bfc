@@ -580,7 +580,13 @@ main (int argc, char *argv[])
 	//   args -> rdi, rsi, rdx, r10, r8, r9
 	//   trashed <- rcx, r11
 
+#ifdef TARGET_OPENBSD
+	enum { SYS_READ = 3, SYS_WRITE = 4, SYS_EXIT = 1 };
+#elif defined TARGET_LINUX
 	enum { SYS_READ = 0, SYS_WRITE = 1, SYS_EXIT = 60 };
+#else
+#error Target not supported
+#endif
 
 	CODE ("\xB8") DD (SYS_EXIT)  // mov eax, 0x3c
 	CODE ("\x48\x31\xFF")        // xor rdi, rdi
@@ -605,7 +611,7 @@ main (int argc, char *argv[])
 	size_t read_offset = buffer.len;
 	CODE ("\x50")                // push rax -- save tape position
 	CODE ("\xB8") DD (SYS_READ)  // mov eax, "SYS_READ"
-	CODE ("\x48\x89\xC7")        // mov rdi, rax -- STDIN_FILENO
+	CODE ("\xBF") DD (0)         // mov edi, "STDIN_FILENO"
 	CODE ("\x66\x6A\x00")        // push word 0 -- the default value for EOF
 	CODE ("\x48\x89\xE6")        // mov rsi, rsp -- the char starts at rsp
 	CODE ("\xBA") DD (1)         // mov edx, 1 -- count
@@ -623,7 +629,7 @@ main (int argc, char *argv[])
 	size_t write_offset = buffer.len;
 	CODE ("\x50")                // push rax -- save tape position
 	CODE ("\xB8") DD (SYS_WRITE) // mov eax, "SYS_WRITE"
-	CODE ("\x48\x89\xC7")        // mov rdi, rax -- STDOUT_FILENO
+	CODE ("\xBF") DD (1)         // mov edi, "STDOUT_FILENO"
 	CODE ("\x66\x53")            // push bx
 	CODE ("\x48\x89\xE6")        // mov rsi, rsp -- the char starts at rsp
 	CODE ("\xBA") DD (1)         // mov edx, 1 -- count
@@ -683,7 +689,12 @@ main (int argc, char *argv[])
 
 	// ELF header
 	CODE ("\x7F" "ELF\x02\x01\x01")     // ELF, 64-bit, little endian, v1
+#ifdef TARGET_OPENBSD
+	// OpenBSD either requires its ABI or a PT_NOTE with "OpenBSD" in it
+	CODE ("\x0C\x00" "\0\0\0\0\0\0\0")  // OpenBSD ABI, v0, padding
+#else
 	CODE ("\x00\x00" "\0\0\0\0\0\0\0")  // Unix System V ABI, v0, padding
+#endif
 	DW (2) DW (62) DD (1)               // executable, x86-64, v1
 	DQ (ELF_LOAD_CODE + ELF_META_SIZE)  // entry point address
 	DQ (ELF_HEADER_SIZE) DQ (0)         // program, section header offset

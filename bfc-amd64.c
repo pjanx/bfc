@@ -619,9 +619,9 @@ main (int argc, char *argv[])
 	CODE ("\x66\x5B")            // pop bx
 
 	CODE ("\x48\x83\xF8\x00")    // cmp rax, 0
-	CODE ("\x48\x8D\x35") DD (4) // lea rsi, [rel read_message]
-	CODE ("\x7C")                // jl "fatal_offset" -- write failure message
-	DB ((intptr_t) fatal_offset - (intptr_t) (buffer.len + 1))
+	CODE ("\x48\x8D\x35") DD (8) // lea rsi, [rel read_message]
+	CODE ("\x0F\x8C")            // jl "fatal_offset" -- write failure message
+	DD ((intptr_t) fatal_offset - (intptr_t) (buffer.len + 4))
 	CODE ("\x58")                // pop rax -- restore tape position
 	CODE ("\xC3")                // ret
 	CODE ("fatal: read failed\n\0")
@@ -637,9 +637,9 @@ main (int argc, char *argv[])
 	CODE ("\x66\x5B")            // pop bx
 
 	CODE ("\x48\x83\xF8\x00")    // cmp rax, 0
-	CODE ("\x48\x8D\x35") DD (4) // lea rsi, [rel write_message]
-	CODE ("\x7C")                // jl "fatal_offset" -- write failure message
-	DB ((intptr_t) fatal_offset - (intptr_t) (buffer.len + 1))
+	CODE ("\x48\x8D\x35") DD (8) // lea rsi, [rel write_message]
+	CODE ("\x0F\x8C")            // jl "fatal_offset" -- write failure message
+	DD ((intptr_t) fatal_offset - (intptr_t) (buffer.len + 4))
 	CODE ("\x58")                // pop rax -- restore tape position
 	CODE ("\xC3")                // ret
 	CODE ("fatal: write failed\n\0")

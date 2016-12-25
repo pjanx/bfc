@@ -725,7 +725,7 @@ main (int argc, char *argv[])
 	FILE *output_file;
 #ifdef __unix__
 	int output_fd;
-	if ((output_fd = open (output_path, O_CREAT | O_WRONLY, 0777)) < 0)
+	if ((output_fd = open (output_path, O_CREAT|O_WRONLY|O_TRUNC, 0777)) < 0)
 		exit_fatal ("open: %s: %s\n", output_path, strerror (errno));
 	if (!(output_file = fdopen (output_fd, "w")))
 		exit_fatal ("fdopen: %s\n", strerror (errno));

@@ -588,7 +588,7 @@ main (int argc, char *argv[])
 #error Target not supported
 #endif
 
-	CODE ("\xB8") DD (SYS_EXIT)  // mov eax, 0x3c
+	CODE ("\xB8") DD (SYS_EXIT)  // mov eax, "SYS_EXIT"
 	CODE ("\x48\x31\xFF")        // xor rdi, rdi
 	CODE ("\x0F\x05")            // syscall
 
@@ -608,22 +608,27 @@ main (int argc, char *argv[])
 	CODE ("\xBF") DD (1)         // mov edi, "EXIT_FAILURE"
 	CODE ("\x0F\x05")            // syscall
 
+	size_t io_offset = buffer.len;
+	CODE ("\x48\x89\xE6")        // mov rsi, rsp -- the char starts at rsp
+	CODE ("\xBA") DD (1)         // mov edx, 1 -- count
+	CODE ("\x0F\x05")            // syscall
+
+	CODE ("\x48\x83\xF8\x00")    // cmp rax, 0
+	CODE ("\x4C\x89\xE6")        // mov rsi, r12
+	CODE ("\x7C")                // jl "fatal_offset" -- write failure message
+	DB ((intptr_t) fatal_offset - (intptr_t) (buffer.len + 1))
+	CODE ("\x66\x5B")            // pop bx
+	CODE ("\x58")                // pop rax -- restore tape position
+	CODE ("\xC3")                // ret
+
 	size_t read_offset = buffer.len;
 	CODE ("\x50")                // push rax -- save tape position
 	CODE ("\xB8") DD (SYS_READ)  // mov eax, "SYS_READ"
 	CODE ("\xBF") DD (0)         // mov edi, "STDIN_FILENO"
 	CODE ("\x66\x6A\x00")        // push word 0 -- the default value for EOF
-	CODE ("\x48\x89\xE6")        // mov rsi, rsp -- the char starts at rsp
-	CODE ("\xBA") DD (1)         // mov edx, 1 -- count
-	CODE ("\x0F\x05")            // syscall
-	CODE ("\x66\x5B")            // pop bx
-
-	CODE ("\x48\x83\xF8\x00")    // cmp rax, 0
-	CODE ("\x48\x8D\x35") DD (8) // lea rsi, [rel read_message]
-	CODE ("\x0F\x8C")            // jl "fatal_offset" -- write failure message
-	DD ((intptr_t) fatal_offset - (intptr_t) (buffer.len + 4))
-	CODE ("\x58")                // pop rax -- restore tape position
-	CODE ("\xC3")                // ret
+	CODE ("\x4C\x8D\x25") DD (2) // lea r12, [rel read_message]
+	CODE ("\xEB")                // jmp "io_offset"
+	DB ((intptr_t) io_offset - (intptr_t) (buffer.len + 1))
 	CODE ("fatal: read failed\n\0")
 
 	size_t write_offset = buffer.len;
@@ -631,17 +636,9 @@ main (int argc, char *argv[])
 	CODE ("\xB8") DD (SYS_WRITE) // mov eax, "SYS_WRITE"
 	CODE ("\xBF") DD (1)         // mov edi, "STDOUT_FILENO"
 	CODE ("\x66\x53")            // push bx
-	CODE ("\x48\x89\xE6")        // mov rsi, rsp -- the char starts at rsp
-	CODE ("\xBA") DD (1)         // mov edx, 1 -- count
-	CODE ("\x0F\x05")            // syscall
-	CODE ("\x66\x5B")            // pop bx
-
-	CODE ("\x48\x83\xF8\x00")    // cmp rax, 0
-	CODE ("\x48\x8D\x35") DD (8) // lea rsi, [rel write_message]
-	CODE ("\x0F\x8C")            // jl "fatal_offset" -- write failure message
-	DD ((intptr_t) fatal_offset - (intptr_t) (buffer.len + 4))
-	CODE ("\x58")                // pop rax -- restore tape position
-	CODE ("\xC3")                // ret
+	CODE ("\x4C\x8D\x25") DD (2) // lea r12, [rel write_message]
+	CODE ("\xEB")                // jmp "io_offset"
+	DB ((intptr_t) io_offset - (intptr_t) (buffer.len + 1))
 	CODE ("fatal: write failed\n\0")
 
 	// Now that we know where each instruction is, fill in relative jumps

@@ -35,6 +35,18 @@ When no input file is specified, standard input is used.  Similarly, the default
 output filename is `a.out`.  After the compilation, the resulting file can be
 run on the target platform.
 
+gdb
+---
+You may have noticed the `gdb-experiment.go` file.  It is a non-optimizing
+version of the compiler targeting Linux only that adds DWARF debugging
+information mapping code locations onto lines in the `ir-dump.txt` byproduct
+output file.  It's been rewritten in Go since managing all those binary buffers
+required to build the symbol table proved to be too painful in C.
+
+ $ go run gdb-experiment.go [INPUT-FILE] [OUTPUT-FILE]
+
+Use `break *0x4000b7` to get a breakpoint at the first Brainfuck instruction.
+
 Contributing and Support
 ------------------------
 Use this project's GitHub to report any bugs, request features, or submit pull

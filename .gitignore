@@ -1,5 +1,8 @@
 a.out
+gdb-experiment
 bfc-amd64-*
+
+ir-dump.txt
 
 bfc.creator*
 bfc.config

@@ -1,14 +1,21 @@
-// Non-optimizing Brainfuck compiler generating binaries for Linux on x86-64;
-// gofmt has been tried, with disappointing results
+// Non-optimizing Brainfuck compiler generating binaries for Linux on x86-64
+// with debugging information mapping instructions onto an IR dump.
+// gofmt has been tried, with disappointing results.
+// codegen{} is also pretty ugly in the way it works but damn convenient.
 package main
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
+
+	// Let's not repeat all those constants here onstants
+	"debug/dwarf"
+	"debug/elf"
 )
 
 const ( RIGHT = iota; LEFT; INC; DEC; IN; OUT; BEGIN; END )
@@ -124,16 +131,15 @@ func le(unknown interface{}) []byte {
 	// Trying hard to avoid reflect.Value.Int/Uint
 	formatted := fmt.Sprintf("%d", unknown)
 
-	var v uint64
+	b := make([]byte, 8)
 	if unsigned, err := strconv.ParseUint(formatted, 10, 64); err == nil {
-		v = unsigned
+		binary.LittleEndian.PutUint64(b, unsigned)
 	} else if signed, err := strconv.ParseInt(formatted, 10, 64); err == nil {
-		v = uint64(signed)
+		binary.LittleEndian.PutUint64(b, uint64(signed))
 	} else {
 		panic("cannot convert to number")
 	}
-	return []byte{byte(v), byte(v >> 8), byte(v >> 16), byte(v >> 24),
-		byte(v >> 32), byte(v >> 40), byte(v >> 48), byte(v >> 56)}
+	return b
 }
 
 func (a *codegen) append(v []byte)           { a.buf = append(a.buf, v...) }
@@ -154,8 +160,8 @@ const (
 	SYS_EXIT  = 60
 )
 
-func codegenAmd64(irb []instruction) []byte {
-	offsets := make([]int, len(irb)+1)
+func codegenAmd64(irb []instruction) (code []byte, offsets []int) {
+	offsets = make([]int, len(irb)+1)
 	a := codegen{}
 
 	a.code("\xB8").dd(ElfDataAddr)                // mov rax, "ElfCodeAddr"
@@ -268,7 +274,7 @@ func codegenAmd64(irb []instruction) []byte {
 		}
 		copy(a.buf[fixup:], le(target - fixup - 4)[:4])
 	}
-	return a.buf
+	return a.buf, offsets
 }
 
 // --- Main --------------------------------------------------------------------
@@ -301,55 +307,244 @@ func main() {
 	// ... various optimizations could be performed here if we give up brevity
 	pairLoops(irb)
 	dump("ir-dump.txt", irb)
+	code, offsets := codegenAmd64(irb)
 
-	code := codegenAmd64(irb)
-	a := codegen{}
+// - - ELF generation  - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-	// TODO: also use the constants in package "debug/elf"
+	// Now that we know how long the machine code is, we can write the header.
+	// Note that for PIE we would need to depend on the dynamic linker, so no.
+	//
+	// Recommended reading:
+	//   http://www.muppetlabs.com/~breadbox/software/tiny/teensy.html
+	//   man 5 elf
+	//
+	// In case of unexpected gdb problems, also see:
+	//   DWARF4.pdf
+	//   https://sourceware.org/elfutils/DwarfLint
+	//   http://wiki.osdev.org/DWARF
 
 	const (
-		ElfHeaderSize       = 64        // size of the ELF header
-		ElfProgramEntrySize = 56        // size of a program header
-		ElfSectionEntrySize = 64        // size of a section header
-		ElfPrologSize       = ElfHeaderSize + 2*ElfProgramEntrySize
+		ElfHeaderSize       = 64        // Size of the ELF header
+		ElfProgramEntrySize = 56        // Size of a program header
+		ElfSectionEntrySize = 64        // Size of a section header
 	)
 
-	// ELF header
-	a.code("\x7FELF\x02\x01\x01")       // ELF, 64-bit, little endian, v1
-	// Unix System V ABI, v0, padding
-	a.code("\x00\x00" + "\x00\x00\x00\x00\x00\x00\x00")
-	a.dw(2).dw(62).dd(1)                // executable, x86-64, v1
-	a.dq(ElfCodeAddr + ElfPrologSize)   // entry point address
+// - - Program headers - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-	// We only append section headers with debugging info with DEBUG
-	a.dq(ElfHeaderSize).dq(0)           // program, section header offset
-	a.dd(0)                             // no processor-specific flags
-	a.dw(ElfHeaderSize)                 // ELF header size
-	a.dw(ElfProgramEntrySize).dw(2)     // program hdr tbl entry size, count
-	a.dw(ElfSectionEntrySize).dw(0)     // section hdr tbl entry size, count
-	a.dw(0)                             // no section index for strings
+	ph := codegen{}
+	phCount := 2
+
+	codeOffset := ElfHeaderSize + phCount*ElfProgramEntrySize
+	codeEndOffset := codeOffset + len(code)
 
 	// Program header for code
 	// The entry point address seems to require alignment, so map start of file
-	a.dd(1).dd(5)                       // PT_LOAD, PF_R | PF_X
-	a.dq(0)                             // offset within the file
-	a.dq(ElfCodeAddr)                   // address in virtual memory
-	a.dq(ElfCodeAddr)                   // address in physical memory
-	a.dq(ElfPrologSize + len(code))     // length within the file
-	a.dq(ElfPrologSize + len(code))     // length within memory
-	a.dq(4096)                          // segment alignment
+	ph.dd(elf.PT_LOAD).dd(elf.PF_R | elf.PF_X)
+	ph.dq(0)                            // Offset within the file
+	ph.dq(ElfCodeAddr)                  // Address in virtual memory
+	ph.dq(ElfCodeAddr)                  // Address in physical memory
+	ph.dq(codeEndOffset)                // Length within the file
+	ph.dq(codeEndOffset)                // Length within memory
+	ph.dq(4096)                         // Segment alignment
 
 	// Program header for the tape
-	a.dd(1).dd(6)                       // PT_LOAD, PF_R | PF_W
-	a.dq(0)                             // offset within the file
-	a.dq(ElfDataAddr)                   // address in virtual memory
-	a.dq(ElfDataAddr)                   // address in physical memory
-	a.dq(0)                             // length within the file
-	a.dq(1 << 20)                       // one megabyte of memory
-	a.dq(4096)                          // segment alignment
+	ph.dd(elf.PT_LOAD).dd(elf.PF_R | elf.PF_W)
+	ph.dq(0)                            // Offset within the file
+	ph.dq(ElfDataAddr)                  // Address in virtual memory
+	ph.dq(ElfDataAddr)                  // Address in physical memory
+	ph.dq(0)                            // Length within the file
+	ph.dq(1 << 20)                      // One megabyte of memory
+	ph.dq(4096)                         // Segment alignment
 
-	a.buf = append(a.buf, code...)
-	if err = ioutil.WriteFile(outputPath, a.buf, 0777); err != nil {
+	// Now that the rigid part has been generated, we can append sections
+	pieces := [][]byte{ph.buf, code}
+	position := codeEndOffset
+
+// - - Sections  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+	sh := codegen{}
+	shCount := 0
+
+	// This section is created on the go as we need to name other sections
+	stringTable := codegen{}
+
+// - - Text  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+	sh.dd(len(stringTable.buf))         // Index for the name of the section
+	stringTable.code(".text\x00")
+	sh.dd(elf.SHT_PROGBITS)
+	sh.dq(elf.SHF_ALLOC | elf.SHF_EXECINSTR)
+	sh.dq(ElfCodeAddr + codeOffset)     // Memory address
+	sh.dq(codeOffset)                   // Byte offset
+	sh.dq(len(code) - codeOffset)       // Byte size
+	sh.dd(0).dd(0)                      // No link, no info
+	sh.dq(0).dq(0)                      // No alignment, no entry size
+	shCount++
+
+// - - Debug line  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+	const (
+		opcodeBase = 13  // Offset by DWARF4 standard opcodes
+		lineBase   = 0   // We don't need negative line indexes
+		lineRange  = 2   // Either we advance a line or not (we always do)
+	)
+
+	// FIXME: we use db() a lot instead of a proper un/signed LEB128 encoder;
+	//   that means that values > 127/63 or < 0 would break it;
+	//   see Appendix C to DWARF4.pdf for an algorithm
+
+	lineProgram := codegen{}
+	// Extended opcode DW_LNE_set_address to reset the PC to the start of code
+	lineProgram.db(0).db(1 + 8).db(2).dq(ElfCodeAddr + codeOffset)
+	if len(irb) > 0 {
+		lineProgram.db(opcodeBase + offsets[0] * lineRange)
+	}
+	// The epilog, which is at the very end of the offset array, is included
+	for i := 1; i <= len(irb); i++ {
+		size := offsets[i] - offsets[i - 1]
+		lineProgram.db(opcodeBase + (1 - lineBase) + size * lineRange)
+	}
+	// Extended opcode DW_LNE_end_sequence is mandatory at the end
+	lineProgram.db(0).db(1).db(1)
+
+	lineHeader := codegen{}
+	lineHeader.db(1)                    // Minimum instruction length
+	lineHeader.db(1)                    // Maximum operations per instruction
+	lineHeader.db(1)                    // default_is_stmt
+	lineHeader.db(lineBase)
+	lineHeader.db(lineRange)
+
+	lineHeader.db(opcodeBase)
+	// Number of operands for all standard opcodes (1..opcodeBase-1)
+	opcodeLengths := []byte{0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1}
+	lineHeader.buf = append(lineHeader.buf, opcodeLengths...)
+
+	// include_directories []string \x00
+	lineHeader.db(0)
+	// file_names []struct{base string; dir u8; modified u8; length u8} \x00
+	lineHeader.code("ir-dump.txt\x00").db(0).db(0).db(0).db(0)
+
+	lineEntry := codegen{}
+	lineEntry.dw(4)                     // .debug_line version number
+	lineEntry.dd(len(lineHeader.buf))
+	lineEntry.buf = append(lineEntry.buf, lineHeader.buf...)
+	lineEntry.buf = append(lineEntry.buf, lineProgram.buf...)
+
+	debugLine := codegen{}
+	debugLine.dd(len(lineEntry.buf))
+	debugLine.buf = append(debugLine.buf, lineEntry.buf...)
+
+	sh.dd(len(stringTable.buf))         // Index for the name of the section
+	stringTable.code(".debug_line\x00")
+	sh.dd(elf.SHT_PROGBITS).dq(0).dq(0) // Type, no flags, no memory address
+	sh.dq(position)                     // Byte offset
+	sh.dq(len(debugLine.buf))           // Byte size
+	sh.dd(0).dd(0)                      // No link, no info
+	sh.dq(0).dq(0)                      // No alignment, no entry size
+	shCount++
+
+	pieces = append(pieces, debugLine.buf)
+	position += len(debugLine.buf)
+
+// - - Debug abbreviations - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+	const (
+		formAddr      = 0x01            // Pointer size
+		formSecOffset = 0x17            // DWARF size
+	)
+
+	debugAbbrev := codegen{}
+	debugAbbrev.db(1)                   // Our abbreviation code
+	debugAbbrev.db(dwarf.TagCompileUnit)
+	debugAbbrev.db(0)                   // DW_CHILDREN_no
+	debugAbbrev.db(dwarf.AttrLowpc).db(formAddr)
+	debugAbbrev.db(dwarf.AttrHighpc).db(formAddr)
+	debugAbbrev.db(dwarf.AttrStmtList).db(formSecOffset)
+	debugAbbrev.db(0).db(0)             // End of attributes
+	debugAbbrev.db(0)                   // End of abbreviations
+
+	sh.dd(len(stringTable.buf))         // Index for the name of the section
+	stringTable.code(".debug_abbrev\x00")
+	sh.dd(elf.SHT_PROGBITS).dq(0).dq(0) // Type, no flags, no memory address
+	sh.dq(position)                     // Byte offset
+	sh.dq(len(debugAbbrev.buf))         // Byte size
+	sh.dd(0).dd(0)                      // No link, no info
+	sh.dq(0).dq(0)                      // No alignment, no entry size
+	shCount++
+
+	pieces = append(pieces, debugAbbrev.buf)
+	position += len(debugAbbrev.buf)
+
+// - - Debug info  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+	cuEntry := codegen{}
+	cuEntry.dw(4)                       // .debug_info version number
+	cuEntry.dd(0)                       // Offset into .debug_abbrev
+	cuEntry.db(8)                       // Pointer size
+
+	// Single compile unit as per .debug_abbrev
+	cuEntry.db(1)
+	cuEntry.dq(ElfCodeAddr + codeOffset)
+	cuEntry.dq(ElfCodeAddr + codeEndOffset)
+	cuEntry.dd(0)
+
+	debugInfo := codegen{}
+	debugInfo.dd(len(cuEntry.buf))
+	debugInfo.buf = append(debugInfo.buf, cuEntry.buf...)
+
+	sh.dd(len(stringTable.buf))         // Index for the name of the section
+	stringTable.code(".debug_info\x00")
+	sh.dd(elf.SHT_PROGBITS).dq(0).dq(0) // Type, no flags, no memory address
+	sh.dq(position)                     // Byte offset
+	sh.dq(len(debugInfo.buf))           // Byte size
+	sh.dd(0).dd(0)                      // No link, no info
+	sh.dq(0).dq(0)                      // No alignment, no entry size
+	shCount++
+
+	pieces = append(pieces, debugInfo.buf)
+	position += len(debugInfo.buf)
+
+// - - Section names and section table - - - - - - - - - - - - - - - - - - - - -
+
+	sh.dd(len(stringTable.buf))         // Index for the name of the section
+	stringTable.code(".shstrtab\x00")
+	sh.dd(elf.SHT_STRTAB).dq(0).dq(0)   // Type, no flags, no memory address
+	sh.dq(position)                     // Byte offset
+	sh.dq(len(stringTable.buf))         // Byte size
+	sh.dd(0).dd(0)                      // No link, no info
+	sh.dq(0).dq(0)                      // No alignment, no entry size
+	shCount++
+
+	pieces = append(pieces, stringTable.buf)
+	position += len(stringTable.buf)
+
+	pieces = append(pieces, sh.buf)
+	// Don't increment the position, we want to know where section headers start
+
+// - - Final assembly of parts - - - - - - - - - - - - - - - - - - - - - - - - -
+
+	bin := codegen{}
+
+	// ELF header
+	bin.code("\x7FELF\x02\x01\x01")     // ELF, 64-bit, little endian, v1
+	// Unix System V ABI, v0, padding
+	bin.code("\x00\x00" + "\x00\x00\x00\x00\x00\x00\x00")
+	bin.dw(elf.ET_EXEC).dw(elf.EM_X86_64).dd(elf.EV_CURRENT)
+	bin.dq(ElfCodeAddr + codeOffset)    // Entry point address
+	bin.dq(ElfHeaderSize)               // Program header offset
+	bin.dq(position)                    // Section header offset
+	bin.dd(0)                           // No processor-specific flags
+	bin.dw(ElfHeaderSize)               // ELF header size
+	bin.dw(ElfProgramEntrySize)         // Program header table entry size
+	bin.dw(phCount)                     // Program header table entry count
+	bin.dw(ElfSectionEntrySize)         // Section header table entry size
+	bin.dw(shCount)                     // Section header table entry count
+	bin.dw(shCount - 1)                 // Section index for strings
+
+	for _, x := range pieces {
+		bin.buf = append(bin.buf, x...)
+	}
+	if err = ioutil.WriteFile(outputPath, bin.buf, 0777); err != nil {
 		log.Fatalf("%s", err)
 	}
 }

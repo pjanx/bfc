@@ -50,8 +50,8 @@ Use `break *0x4000b7` to get a breakpoint at the first Brainfuck instruction.
 image::gdb-experiment.png[align="center"]
 
 There is also `gdb-object-file.go` that generates an object file that can be
-statically linked with `ld`, and with `gdb-object-file-libc.go` you can link
-against the libc with the C compiler, generating an OS-independent binary:
+statically linked with `ld`, and `gdb-object-file-libc.go` generates an
+OS-independent binary that can be linked against the libc with the C compiler:
 
  $ go run gdb-object-file-libc.go program.bf program.o
  $ cc program.o -o program

@@ -376,7 +376,7 @@ func main() {
 	sh.dq(elf.SHF_ALLOC | elf.SHF_EXECINSTR)
 	sh.dq(ElfCodeAddr + codeOffset)     // Memory address
 	sh.dq(codeOffset)                   // Byte offset
-	sh.dq(len(code) - codeOffset)       // Byte size
+	sh.dq(len(code))                    // Byte size
 	sh.dd(0).dd(0)                      // No link, no info
 	sh.dq(0).dq(0)                      // No alignment, no entry size
 	shCount++

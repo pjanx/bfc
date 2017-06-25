@@ -1,4 +1,4 @@
-// Non-optimizing Brainfuck compiler generating binaries for Linux on x86-64
+// Non-optimizing Brainfuck compiler generating object files for Linux on x86-64
 // with debugging information mapping instructions onto an IR dump.
 // gofmt has been tried, with disappointing results.
 // codegen{} is also pretty ugly in the way it works but damn convenient.
@@ -148,11 +148,6 @@ func (a *codegen) db(v interface{}) *codegen { a.append(le(v)[:1]); return a }
 func (a *codegen) dw(v interface{}) *codegen { a.append(le(v)[:2]); return a }
 func (a *codegen) dd(v interface{}) *codegen { a.append(le(v)[:4]); return a }
 func (a *codegen) dq(v interface{}) *codegen { a.append(le(v)[:8]); return a }
-
-const (
-	ElfCodeAddr = 0x400000 // Where the code is loaded in memory
-	ElfDataAddr = 0x800000 // Where the tape is placed in memory
-)
 
 const (
 	SYS_READ  = 0
@@ -332,36 +327,9 @@ func main() {
 		ElfDataSize         = 1 << 20   // Tape length
 	)
 
-// - - Program headers - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-	ph := codegen{}
-	phCount := 2
-
-	codeOffset := ElfHeaderSize + phCount*ElfProgramEntrySize
-	codeEndOffset := codeOffset + len(code)
-
-	// Program header for code
-	// The entry point address seems to require alignment, so map start of file
-	ph.dd(elf.PT_LOAD).dd(elf.PF_R | elf.PF_X)
-	ph.dq(0)                            // Offset within the file
-	ph.dq(ElfCodeAddr)                  // Address in virtual memory
-	ph.dq(ElfCodeAddr)                  // Address in physical memory
-	ph.dq(codeEndOffset)                // Length within the file
-	ph.dq(codeEndOffset)                // Length within memory
-	ph.dq(4096)                         // Segment alignment
-
-	// Program header for the tape
-	ph.dd(elf.PT_LOAD).dd(elf.PF_R | elf.PF_W)
-	ph.dq(0)                            // Offset within the file
-	ph.dq(ElfDataAddr)                  // Address in virtual memory
-	ph.dq(ElfDataAddr)                  // Address in physical memory
-	ph.dq(0)                            // Length within the file
-	ph.dq(ElfDataSize)                  // One megabyte of memory
-	ph.dq(4096)                         // Segment alignment
-
-	// Now that the rigid part has been generated, we can append sections
-	pieces := [][]byte{ph.buf, code}
-	position := codeEndOffset
+	codeOffset := ElfHeaderSize
+	pieces := [][]byte{code}
+	position := codeOffset + len(code)
 
 // - - Sections  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -387,7 +355,7 @@ func main() {
 	stringTable.code(".text\x00")
 	sh.dd(elf.SHT_PROGBITS)
 	sh.dq(elf.SHF_ALLOC | elf.SHF_EXECINSTR)
-	sh.dq(ElfCodeAddr + codeOffset)     // Memory address
+	sh.dq(0)                            // Memory address
 	sh.dq(codeOffset)                   // Byte offset
 	sh.dq(len(code))                    // Byte size
 	sh.dd(0).dd(0)                      // No link, no info
@@ -401,7 +369,7 @@ func main() {
 	stringTable.code(".bss\x00")
 	sh.dd(elf.SHT_NOBITS)
 	sh.dq(elf.SHF_ALLOC | elf.SHF_WRITE)
-	sh.dq(ElfDataAddr)                  // Memory address
+	sh.dq(0)                            // Memory address
 	sh.dq(0)                            // Byte offset
 	sh.dq(ElfDataSize)                  // Byte size
 	sh.dd(0).dd(0)                      // No link, no info
@@ -465,6 +433,10 @@ func main() {
 	position += len(symtab.buf)
 
 // - - Text relocation records - - - - - - - - - - - - - - - - - - - - - - - - -
+
+	// ld.gold doesn't support SHT_REL, with SHT_RELA it overrides the target.
+	// ld.bfd addends to the target even with SHT_RELA.
+	// Thus, with SHT_RELA the target needs to be all zeros to be portable.
 
 	textRel := codegen{}
 	// Relocation record for code[tapeoff] += &tape
@@ -682,13 +654,13 @@ func main() {
 	bin.code("\x00\x00" + "\x00\x00\x00\x00\x00\x00\x00")
 	// The BFD linker will happily try to link ET_EXEC though
 	bin.dw(elf.ET_REL).dw(elf.EM_X86_64).dd(elf.EV_CURRENT)
-	bin.dq(ElfCodeAddr + codeOffset)    // Entry point address
-	bin.dq(ElfHeaderSize)               // Program header offset
+	bin.dq(0)                           // Entry point address
+	bin.dq(0)                           // Program header offset
 	bin.dq(position)                    // Section header offset
 	bin.dd(0)                           // No processor-specific flags
 	bin.dw(ElfHeaderSize)               // ELF header size
 	bin.dw(ElfProgramEntrySize)         // Program header table entry size
-	bin.dw(phCount)                     // Program header table entry count
+	bin.dw(0)                           // Program header table entry count
 	bin.dw(ElfSectionEntrySize)         // Section header table entry size
 	bin.dw(shCount)                     // Section header table entry count
 	bin.dw(shCount - 1)                 // Section index for strings

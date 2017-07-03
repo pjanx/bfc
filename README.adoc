@@ -35,25 +35,26 @@ When no input file is specified, standard input is used.  Similarly, the default
 output filename is `a.out`.  After the compilation, the resulting file can be
 run on the target platform.
 
-gdb
----
-You may have noticed the `gdb-experiment.go` file.  It is a non-optimizing
+DWARF
+-----
+You may have noticed the 'dwarf' directory.  `simple.go` is a non-optimizing
 version of the compiler targeting Linux only that adds DWARF debugging
 information mapping code locations onto lines in the `ir-dump.txt` byproduct
 output file.  It's been rewritten in Go since managing all those binary buffers
 required to build the symbol table proved to be too painful in C.
 
- $ go run gdb-experiment.go [INPUT-FILE] [OUTPUT-FILE]
+ $ go run dwarf/simple.go [INPUT-FILE] [OUTPUT-FILE]
 
-Use `break *0x4000b7` to get a breakpoint at the first Brainfuck instruction.
+Type `break *0x4000b7` into gdb to get a breakpoint at the first Brainfuck
+instruction.
 
 image::gdb-experiment.png[align="center"]
 
-There is also `gdb-object-file.go` that generates an object file that can be
-statically linked with `ld`, and `gdb-object-file-libc.go` generates an
+There is also `object-file.go` that generates an object file that can be
+statically linked with `ld`, and `object-file-libc.go` that generates an
 OS-independent binary that can be linked against the libc with the C compiler:
 
- $ go run gdb-object-file-libc.go program.bf program.o
+ $ go run dwarf/object-file-libc.go program.bf program.o
  $ cc program.o -o program
 
 Contributing and Support

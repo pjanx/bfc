@@ -1,4 +1,4 @@
-# All we need is C99 and POSIX, which this should make available
+# All we need is C99 and POSIX.1-2001, which this should make available
 CFLAGS = -std=gnu99
 NAMES = bfc-amd64-linux bfc-amd64-openbsd
 

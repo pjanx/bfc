@@ -1,0 +1,31 @@
+# clang-format is fairly limited, and these rules are approximate:
+#  - array initializers can get terribly mangled with clang-format 12.0,
+#  - sometimes it still aligns with space characters,
+#  - struct name NL { NL ... NL } NL name; is unachievable.
+BasedOnStyle: GNU
+ColumnLimit: 80
+IndentWidth: 4
+TabWidth: 4
+UseTab: ForContinuationAndIndentation
+BreakBeforeBraces: Allman
+SpaceAfterCStyleCast: true
+AlignAfterOpenBracket: DontAlign
+AlignOperands: DontAlign
+AlignConsecutiveMacros: Consecutive
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortEnumsOnASingleLine: true
+IndentGotoLabels: false
+
+# IncludeCategories has some potential, but it may also break the build.
+# Note that the documentation says the value should be "Never".
+SortIncludes: false
+
+# This is a compromise, it generally works out aesthetically better.
+BinPackArguments: false
+
+# Unfortunately, this can't be told to align to column 40 or so.
+SpacesBeforeTrailingComments: 2
+
+StatementMacros: ['CODE', 'DB', 'DW', 'DD', 'DQ']

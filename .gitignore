@@ -8,3 +8,5 @@ bfc.creator*
 bfc.config
 bfc.files
 bfc.includes
+bfc.cflags
+bfc.cxxflags

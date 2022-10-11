@@ -57,6 +57,10 @@ OS-independent binary that can be linked against the libc with the C compiler:
  $ go run dwarf/object-file-libc.go program.bf program.o
  $ cc program.o -o program
 
+Similar software
+----------------
+https://github.com/skeeto/bf-x86 is perhaps an easier-to-make-sense-of project.
+
 Contributing and Support
 ------------------------
 Use https://git.janouch.name/p/bfc to report any bugs, request features,
